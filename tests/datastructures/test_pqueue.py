@@ -6,7 +6,7 @@ def test_create_empty_queue():
     pq = PriorityQueue.PriorityQueue()
     assert pq.is_empty()
 
-    print("test_create_empty_queue: passed")
+
 
 
 def test_basic_operations():
@@ -27,7 +27,7 @@ def test_basic_operations():
     pq2.clear()
     assert pq2.is_empty()
 
-    print("test_basic_operations: passed")
+
 
 if __name__ == '__main__':
 	test_create_empty_queue()

@@ -7,7 +7,7 @@ import collections as _collections
 # TODO(sredmond): Make this into a collection subclass.
 # TODO(sredmond): Use namedtuples.
 import heapq as _heapq
-
+import itertools
 
 class PriorityQueue(object):
 
