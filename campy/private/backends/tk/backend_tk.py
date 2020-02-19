@@ -61,10 +61,10 @@ class TkWindow:
         self._master.protocol("WM_DELETE_WINDOW", self._close)
         self._master.resizable(width=False, height=False)  # Disable resizing by default.
 
-        # Raise the master to be the top window.
-        self._master.wm_attributes("-topmost", 1)  # TODO(sredmond): Is this really necessary?
-        self._master.lift()
-        self._master.focus_force()
+        # For testing: Raise the master to be the top window.
+        #self._master.wm_attributes("-topmost", 1)  # TODO(sredmond): Is this really necessary?
+        #self._master.lift()
+        #self._master.focus_force()
 
         # TODO(sredmond): On macOS, multiple backends might race to set the process-level menu bar.
         setup_menubar(self._master)
@@ -133,18 +133,26 @@ class TkWindow:
     def clear(self):
         # Delete all canvas elements and all interactors, but leave the canvas and interactor regions in place."""
         self.clear_canvas()
+
+        # Since each interactor_area.children is a dictionary, must move to a list first before
+        # clearing dictionary destroying the individual items
+        interactors_to_remove = []
         if self._top:
-            for child in self._top.children:
-                child.destroy()
+            interactors_to_remove += [child[1] for child in self._top.children.items()]
+            self._top.children.clear()
         if self._bottom:
-            for child in self._bottom.children:
-                child.destroy()
+            interactors_to_remove += [child[1] for child in self._bottom.children.items()]
+            self._bottom.children.clear()
         if self._left:
-            for child in self._left.children:
-                child.destroy()
+            interactors_to_remove += [child[1] for child in self._left.children.items()]
+            self._left.children.clear()
         if self._right:
-            for child in self._right.children:
-                child.destroy()
+            interactors_to_remove += [child[1] for child in self._right.children.items()]
+            self._right.children.clear()
+
+        while (len(interactors_to_remove) > 0):
+            interactors_to_remove[0].destroy()
+            interactors_to_remove.pop(0)
 
     def clear_canvas(self):
         # Delete all canvas elements, but leave the canvas (and all interactor regions) in place.
@@ -264,13 +272,13 @@ class TkBackend(GraphicsBackendBase):
     def gwindow_add_to_region(self, gwindow, gobject, region):
         from campy.graphics.gwindow import Region
         if region == Region.NORTH:
-            self._ginteractor_add(gobject, gwindow._tkwin.top)
+            self._ginteractor_add(gobject, gwindow._tkwin.top, True)
         if region == Region.EAST:
-            self._ginteractor_add(gobject, gwindow._tkwin.right)
+            self._ginteractor_add(gobject, gwindow._tkwin.right, False)
         if region == Region.SOUTH:
-            self._ginteractor_add(gobject, gwindow._tkwin.bottom)
+            self._ginteractor_add(gobject, gwindow._tkwin.bottom, True)
         if region == Region.WEST:
-            self._ginteractor_add(gobject, gwindow._tkwin.left)
+            self._ginteractor_add(gobject, gwindow._tkwin.left, False)
 
     def gwindow_remove_from_region(self, gwindow, gobject, region): pass
     def gwindow_set_region_alignment(self, gwindow, region, align): pass
@@ -775,13 +783,22 @@ class TkBackend(GraphicsBackendBase):
     ###############
     # Interactors #
     ###############
-    def _ginteractor_add(self, gint, frame):
-        from campy.gui.ginteractors import GButton
+    def _ginteractor_add(self, gint, frame, is_north_south):
+        from campy.gui.ginteractors import GButton, GTextField
+            
+        if isinstance(gint, GTextField):
+            gint._tkobj = tk.Entry(frame, width=40, borderwidth=2) 
+
         if isinstance(gint, GButton):
             # TODO(sredmond): Wrap up a GActionEvent on the Tk side to supply.
             gint._tkobj = tk.Button(frame, text=gint.label, command=gint.click,
             state=tk.NORMAL if not gint.disabled else tk.DISABLED)
-        gint._tkobj.pack()
+
+        if is_north_south: # Pack things left to right in north and south
+            gint._tkobj.pack(side=tk.LEFT)
+            #gint._tkobj.grid(row=0, column=frame.grid_size()[1]) # How it would work with grid
+        else: # Pack things top to bottom in west and east
+            gint._tkobj.pack()
 
         frame.update_idletasks()
 
@@ -817,7 +834,6 @@ class TkBackend(GraphicsBackendBase):
 
         win._master.update_idletasks()
 
-
     def gcheckbox_is_selected(self, gcheckbox):
         return bool(gcheckbox._tkobj.var.get())
 
@@ -827,8 +843,26 @@ class TkBackend(GraphicsBackendBase):
     def gslider_constructor(self, gslider, min, max, value): pass
     def gslider_get_value(self, gslider): pass
     def gslider_set_value(self, gslider, value): pass
-    def gtextfield_constructor(self, gtextfield, num_chars): pass
-    def gtextfield_get_text(self, gtextfield): pass
+
+    def gtextfield_constructor(self, gtextfield):
+        if hasattr(gtextfield, '_tkwin'):
+            return
+
+        win = self._windows[-1]
+        gtextfield._tkwin = win
+
+        # If we want to be able to call functions on the interactor before it renders
+        # (e.g. add_enter_handler), the below line is necessary. Otherwise, just 
+        # tell students they have to add_to_region before calling methods on the interactor.
+        #gtextfield._tkobj = tk.Entry(win._master, width=40, borderwidth=2)
+
+    def gtextfield_get_text(self, gtextfield): 
+        return gtextfield._tkobj.get()
+
+    def gtextfield_set_enter_event(self, gtextfield, fn):
+        gtextfield._tkobj.bind("<Return>", lambda event: fn())
+        # Removed requirement for fn to take event since it's not really necessary
+
     def gtextfield_set_text(self, gtextfield, str): pass
     def gchooser_constructor(self, gchooser): pass
     def gchooser_add_item(self, gchooser, item): pass

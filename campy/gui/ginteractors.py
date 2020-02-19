@@ -130,15 +130,14 @@ class GButton(GInteractor):
         except ValueError:
             return False
 
-    def _click(self, event):
+    def _click(self):
         """Default click implementation doesn't do anything."""
         for listener in self._listeners:
-            listener(event)
+            listener()
 
     def click(self):
         # Make an event to pass to click handler.
-        event = GActionEvent(None, None, None)
-        self._click(event)
+        self._click()
 
 
 class GCheckBox(GInteractor):
@@ -228,7 +227,7 @@ class GTextField(GInteractor):
     Hitting RETURN in a text field generates a :class:`GActionEvent`.
     """
 
-    def __init__(self, width=10):
+    def __init__(self, label, width=10):
         """Create a text field with a maximum width.
 
         A :class:`GActionEvent` is generated whenever the user presses the
@@ -238,6 +237,8 @@ class GTextField(GInteractor):
         """
         super().__init__(self)
         self._width = width
+        self._label = label
+
         _platform.Platform().gtextfield_constructor(self)
 
     @property
@@ -248,6 +249,10 @@ class GTextField(GInteractor):
     @text.setter
     def text(self, content):
         _platform.Platform().gtextfield_set_text(self, content)
+
+    def add_enter_handler(self, function):
+        """Set event handler for return key"""
+        _platform.Platform().gtextfield_set_enter_event(self, function)
 
     def __str__(self):
         return "GTextField(text={}, width={})".format(self.text, self.width)
